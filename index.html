@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FastAPI Parallel Processing</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f6f6f6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    h1 { color: #333; }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 1em;
+    }
+    #result, #status {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      width: 80%;
+      max-width: 500px;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h1>Parallel Processing Demo (FastAPI)</h1>
+
+  <label>Enter numbers (comma separated):</label><br />
+  <input id="numbersInput" type="text" placeholder="e.g. 10,20,30,35" size="40" />
+  <br />
+  <button onclick="submitJob()">Submit Job</button>
+
+  <div id="status"></div>
+  <div id="result"></div>
+
+  <script>
+    const backendUrl = "http://127.0.0.1:8000"; // Update if backend is hosted elsewhere
+
+    async function submitJob() {
+      const numbersInput = document.getElementById("numbersInput").value;
+      const numbers = numbersInput.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+
+      if (numbers.length === 0) {
+        alert("Please enter valid numbers separated by commas.");
+        return;
+      }
+
+      document.getElementById("status").innerHTML = "Submitting job...";
+      document.getElementById("result").innerHTML = "";
+
+      try {
+        const response = await fetch(`${backendUrl}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ numbers })
+        });
+        const data = await response.json();
+        const jobId = data.job_id;
+        document.getElementById("status").innerHTML = `Job submitted! Job ID: <b>${jobId}</b><br>Checking status...`;
+        pollStatus(jobId);
+      } catch (error) {
+        document.getElementById("status").innerHTML = "Error submitting job.";
+        console.error(error);
+      }
+    }
+
+    async function pollStatus(jobId) {
+      const statusUrl = `${backendUrl}/status/${jobId}`;
+      const resultUrl = `${backendUrl}/result/${jobId}`;
+
+      const checkInterval = setInterval(async () => {
+        const res = await fetch(statusUrl);
+        const statusData = await res.json();
+        const status = statusData.status;
+        document.getElementById("status").innerHTML = `Job ID: <b>${jobId}</b><br>Status: <b>${status}</b>`;
+
+        if (status === "finished" || status === "failed") {
+          clearInterval(checkInterval);
+          const resultRes = await fetch(resultUrl);
+          const resultData = await resultRes.json();
+          document.getElementById("result").innerHTML = `<pre>${JSON.stringify(resultData, null, 2)}</pre>`;
+        }
+      }, 1500);
+    }
+  </script>
+</body>
+</html>
